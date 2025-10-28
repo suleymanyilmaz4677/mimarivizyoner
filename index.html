@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Mimari Vizyoner (Gemini Flash Preview)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .loading-overlay { background-color: rgba(255, 255, 255, 0.8); }
+    .result-image { min-height: 200px; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen p-4 sm:p-8">
+  <div class="max-w-4xl mx-auto">
+    <header class="mb-8 text-center">
+      <h1 class="text-4xl font-extrabold text-blue-800">Mimari Vizyoner</h1>
+      <p class="text-gray-500 mt-2">Eskizinizi fotogerçekçi sahnelere dönüştürün. (Gemini nano banana hattı)</p>
+    </header>
+
+    <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <!-- Sol Panel -->
+      <div id="input-panel" class="lg:col-span-1 bg-white p-6 rounded-xl shadow-lg h-full">
+        <h2 class="text-xl font-semibold mb-4 text-blue-700">1. Eskiz ve Stil</h2>
+
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-2" for="fileInput">Eskiz Yükle (PNG/JPG, max 5MB)</label>
+          <input id="fileInput" type="file" accept="image/png,image/jpeg"
+            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4
+                   file:rounded-full file:border-0 file:text-sm file:font-semibold
+                   file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+        </div>
+
+        <div id="previewContainer" class="mb-6 hidden">
+          <p class="text-sm font-medium text-gray-700 mb-1">Önizleme:</p>
+          <img id="imagePreview" class="w-full max-h-40 object-contain rounded-lg border border-gray-200 p-1" alt="Eskiz Önizlemesi"/>
+        </div>
+
+        <div class="mb-6">
+          <label for="promptInput" class="block text-sm font-medium text-gray-700 mb-2">Malzeme ve Stil Açıklaması:</label>
+          <textarea id="promptInput" rows="4" class="w-full px-3 py-2 text-gray-700 border rounded-lg focus:ring-blue-500 focus:border-blue-500 transition"
+            placeholder="Örn: brüt beton + geniş cam, ahşap doğrama; modern minimal."></textarea>
+        </div>
+
+        <h2 class="text-xl font-semibold mb-4 text-blue-700">2. Sahne Tipi Seçin</h2>
+        <div class="space-y-2 mb-6" id="sceneOptions">
+          <label class="flex items-center p-3 border rounded-lg hover:bg-blue-50 cursor-pointer">
+            <input type="radio" name="sceneType" value="OutdoorDay" class="form-radio h-4 w-4 text-blue-600" checked/>
+            <span class="ml-3 text-sm font-medium text-gray-900">Dış Mekan / Gündüz (Parlak doğal ışık)</span>
+          </label>
+          <label class="flex items-center p-3 border rounded-lg hover:bg-blue-50 cursor-pointer">
+            <input type="radio" name="sceneType" value="OutdoorSunset" class="form-radio h-4 w-4 text-blue-600"/>
+            <span class="ml-3 text-sm font-medium text-gray-900">Dış Mekan / Gün batımı (Altın saat)</span>
+          </label>
+          <label class="flex items-center p-3 border rounded-lg hover:bg-blue-50 cursor-pointer">
+            <input type="radio" name="sceneType" value="OutdoorNight" class="form-radio h-4 w-4 text-blue-600"/>
+            <span class="ml-3 text-sm font-medium text-gray-900">Dış Mekan / Gece (Atmosferik yapay ışık)</span>
+          </label>
+          <label class="flex items-center p-3 border rounded-lg hover:bg-blue-50 cursor-pointer">
+            <input type="radio" name="sceneType" value="Indoor" class="form-radio h-4 w-4 text-blue-600"/>
+            <span class="ml-3 text-sm font-medium text-gray-900">İç Mekan (Dengeli doğal+yapay ışık)</span>
+          </label>
+        </div>
+
+        <button id="generateBtn"
+          class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-lg hover:bg-blue-700 transition disabled:bg-blue-300 disabled:cursor-not-allowed flex items-center justify-center shadow-md" disabled>
+          <span id="btnText">Fotogerçekçi Görsel Oluştur</span>
+          <svg id="spinner" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </button>
+        <p id="statusText" class="text-sm mt-2 text-gray-500"></p>
+      </div>
+
+      <!-- Sağ Panel -->
+      <div class="lg:col-span-2">
+        <div id="messageBox" class="p-4 rounded-lg mb-6 hidden" role="alert">
+          <p id="messageText" class="text-sm font-medium"></p>
+        </div>
+
+        <div id="result-panel" class="bg-white p-6 rounded-xl shadow-lg">
+          <h2 class="text-xl font-semibold mb-4 text-blue-700">3. Sonuç ve Sahne Alternatifleri</h2>
+
+          <div id="imageResultContainer" class="relative w-full aspect-video bg-gray-100 rounded-lg overflow-hidden border-2 border-dashed border-gray-300 flex items-center justify-center result-image">
+            <p id="initialText" class="text-gray-500 text-center p-4">Lütfen sol panelde eskiz yükleyip stil belirleyin ve 'Oluştur'a basın.</p>
+            <img id="resultImage" class="hidden w-full h-full object-contain" alt="Oluşturulan Görsel"/>
+            <div id="imageSpinner" class="hidden absolute top-0 left-0 w-full h-full loading-overlay flex items-center justify-center">
+              <svg class="animate-spin h-10 w-10 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </div>
+          </div>
+
+          <div id="currentSceneDesc" class="mt-4 text-center font-medium text-gray-700 hidden"></div>
+          <div id="alternativeButtons" class="mt-6 flex flex-wrap justify-center gap-3 hidden"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+<script>
+  const fileInput = document.getElementById('fileInput');
+  const imagePreview = document.getElementById('imagePreview');
+  const previewContainer = document.getElementById('previewContainer');
+  const promptInput = document.getElementById('promptInput');
+  const generateBtn = document.getElementById('generateBtn');
+  const btnText = document.getElementById('btnText');
+  const spinner = document.getElementById('spinner');
+  const messageBox = document.getElementById('messageBox');
+  const messageText = document.getElementById('messageText');
+  const initialText = document.getElementById('initialText');
+  const resultImage = document.getElementById('resultImage');
+  const imageSpinner = document.getElementById('imageSpinner');
+  const alternativeButtons = document.getElementById('alternativeButtons');
+  const currentSceneDesc = document.getElementById('currentSceneDesc');
+
+  const MAX_FILE_SIZE_MB = 5;
+  const sceneDescriptions = {
+    OutdoorDay:    { desc: 'Dış Mekan / Gündüz',    fullDesc: 'parlak doğal ışık' },
+    OutdoorSunset: { desc: 'Dış Mekan / Gün batımı', fullDesc: 'altın saat' },
+    OutdoorNight:  { desc: 'Dış Mekan / Gece',      fullDesc: 'atmosferik yapay ışık' },
+    Indoor:        { desc: 'İç Mekan',              fullDesc: 'dengeli doğal+yapay ışık' },
+  };
+
+  let fileBase64 = null;
+  let fileMimeType = null;
+
+  function showMessage(type, message){
+    messageBox.classList.remove('hidden','bg-green-100','text-green-800','bg-red-100','text-red-800','bg-yellow-100','text-yellow-800');
+    messageText.textContent = message;
+    if(type==='error'){ messageBox.classList.add('bg-red-100','text-red-800'); }
+    else if(type==='success'){ messageBox.classList.add('bg-green-100','text-green-800'); }
+    else { messageBox.classList.add('bg-yellow-100','text-yellow-800'); }
+  }
+
+  function setLoading(isLoading){
+    generateBtn.disabled = isLoading || !(fileBase64 && promptInput.value.trim().length>3);
+    promptInput.disabled = isLoading;
+    fileInput.disabled = isLoading;
+    document.querySelectorAll('input[name="sceneType"]').forEach(el => el.disabled = isLoading);
+    if(isLoading){ spinner.classList.remove('hidden'); btnText.textContent='Oluşturuluyor...'; imageSpinner.classList.remove('hidden'); }
+    else { spinner.classList.add('hidden'); btnText.textContent='Fotogerçekçi Görsel Oluştur'; imageSpinner.classList.add('hidden'); }
+  }
+
+  fileInput.addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(!file){ previewContainer.classList.add('hidden'); fileBase64=null; return; }
+    if(file.size > MAX_FILE_SIZE_MB*1024*1024){
+      showMessage('error', `Yükleme boyutu ${MAX_FILE_SIZE_MB}MB'ı geçemez. Seçilen dosya: ${(file.size/(1024*1024)).toFixed(2)} MB`);
+      e.target.value=null; previewContainer.classList.add('hidden'); fileBase64=null; return;
+    }
+    showMessage('info','Dosya yüklendi. Stil açıklaması ve sahne seçimiyle oluşturabilirsiniz.');
+
+    const reader = new FileReader();
+    reader.onload = (ev)=>{
+      imagePreview.src = ev.target.result;
+      previewContainer.classList.remove('hidden');
+      const [mimePart,dataPart] = ev.target.result.split(',');
+      fileBase64 = dataPart;
+      fileMimeType = mimePart.match(/:(.*?);/)[1] || 'image/png';
+      generateBtn.disabled = !(fileBase64 && promptInput.value.trim().length>3);
+    };
+    reader.readAsDataURL(file);
+  });
+
+  promptInput.addEventListener('input', ()=>{
+    generateBtn.disabled = !(fileBase64 && promptInput.value.trim().length>3);
+  });
+
+  function createAlternativeButtons(currentSceneType){
+    alternativeButtons.innerHTML=''; alternativeButtons.classList.remove('hidden');
+    const all = Object.keys(sceneDescriptions);
+    const alts = all.filter(s=>s!==currentSceneType);
+    currentSceneDesc.textContent = `Şu anki sonuç: ${sceneDescriptions[currentSceneType].desc}`;
+    currentSceneDesc.classList.remove('hidden');
+
+    alts.forEach(sceneType=>{
+      const scene = sceneDescriptions[sceneType];
+      const btn = document.createElement('button');
+      btn.textContent = `${scene.desc} ile Yeniden Dene`;
+      btn.className = 'px-4 py-2 border border-blue-600 text-blue-600 rounded-full font-semibold hover:bg-blue-600 hover:text-white transition';
+      btn.addEventListener('click', ()=>{
+        const prompt = promptInput.value.trim();
+        if(!fileBase64 || !prompt){ showMessage('error','Lütfen eskiz ve stil açıklamasını girin.'); return; }
+        processImageGeneration(prompt, sceneType);
+      });
+      alternativeButtons.appendChild(btn);
+    });
+  }
+
+  async function processImageGeneration(prompt, sceneType){
+    if(prompt.length<5){ showMessage('error','Lütfen stil/malzeme açıklamasını en az 5 karakter girin.'); return; }
+    if(!fileBase64){ showMessage('error','Lütfen geçerli bir eskiz dosyası yükleyin.'); return; }
+
+    setLoading(true);
+    showMessage('info','Görsel oluşturuluyor... Bu işlem birkaç saniye sürebilir.');
+
+    try{
+      const scene = sceneDescriptions[sceneType];
+      const res = await fetch('/api/suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_base64: fileBase64,
+          image_mime_type: fileMimeType || 'image/png',
+          user_prompt: prompt,
+          scene_type: sceneType,
+          scene_desc: scene.fullDesc
+        })
+      });
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error || 'Bilinmeyen hata');
+
+      // ---- Güvenli görüntü/Metin işleme (yalnız metin dönerse kırılmasın) ----
+      if (data.image_base64) {
+        initialText.classList.add('hidden');
+        resultImage.src = `data:image/png;base64,${data.image_base64}`;
+        resultImage.classList.remove('hidden');
+      } else {
+        resultImage.classList.add('hidden');
+        initialText.classList.remove('hidden');
+        initialText.textContent = data.result_text || "Model yalnızca metin döndürdü.";
+      }
+
+      const modeText = data.is_mock ? ' (DEMO Modu)' : '';
+      showMessage('success', `İşlem tamamlandı${modeText}. ${data.result_text || ''}`);
+      createAlternativeButtons(sceneType);
+
+    } catch(err){
+      console.error('API hata:', err);
+      showMessage('error', `Görsel oluşturulamadı: ${err.message}`);
+      resultImage.classList.add('hidden');
+      initialText.classList.remove('hidden');
+      alternativeButtons.classList.add('hidden');
+      currentSceneDesc.classList.add('hidden');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  document.getElementById('generateBtn').addEventListener('click', ()=>{
+    const selectedScene = document.querySelector('input[name="sceneType"]:checked').value;
+    const prompt = promptInput.value.trim();
+    if(!selectedScene || !prompt){ showMessage('error','Lütfen stil açıklaması girin ve bir sahne seçin.'); return; }
+    processImageGeneration(prompt, selectedScene);
+  });
+</script>
+</body>
+</html>
